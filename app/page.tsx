@@ -156,21 +156,59 @@ export default function Home() {
       const filename = `timesheet-correction-${format(getCurrentWeekEnding(), "yyyy-MM-dd")}.pdf`
       downloadPDF(pdf, filename)
 
-      // Save submission
-      submitWeeklyTimesheet(timesheetData)
-
-      // Reload current week data (will be empty after submission)
-      loadCurrentWeekData()
+      // Keep current adjustments, only clear remarks
       setRemarks("")
 
       toast({
         title: "PDF Downloaded",
-        description: "Your timesheet has been downloaded and saved to history.",
+        description: "Your timesheet has been downloaded. Adjustments remain for further editing.",
       })
     } catch (error) {
       toast({
         title: "Error",
         description: "Failed to generate PDF. Please try again.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleSubmitWeek = async () => {
+    if (adjustments.length === 0) {
+      toast({
+        title: "No Adjustments",
+        description: "Please add at least one adjustment before submitting.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    const timesheetData: TimesheetData = {
+      employeeName,
+      employeeNumber,
+      department,
+      supervisorName,
+      remarks,
+      adjustments,
+      weekEnding: getCurrentWeekEnding(),
+      submittedAt: new Date(),
+    }
+
+    try {
+      // Submit to history
+      submitWeeklyTimesheet(timesheetData)
+
+      // Clear form after submission
+      loadCurrentWeekData()
+      setRemarks("")
+
+      toast({
+        title: "Week Submitted",
+        description: "Your timesheet has been submitted and saved to history.",
+      })
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to submit timesheet. Please try again.",
         variant: "destructive",
       })
     }
@@ -372,15 +410,26 @@ export default function Home() {
         </CardContent>
       </Card>
 
-      <Button
-        onClick={handleDownloadPDF}
-        size="lg"
-        className="w-full"
-        disabled={adjustments.length === 0 || !employeeName || !employeeNumber}
-      >
-        <Download className="mr-2 h-4 w-4" />
-        Download PDF & Submit
-      </Button>
+      <div className="flex gap-4">
+        <Button
+          onClick={handleDownloadPDF}
+          size="lg"
+          className="flex-1"
+          disabled={adjustments.length === 0 || !employeeName || !employeeNumber}
+        >
+          <Download className="mr-2 h-4 w-4" />
+          Download PDF
+        </Button>
+        <Button
+          onClick={handleSubmitWeek}
+          size="lg"
+          className="flex-1"
+          variant="outline"
+          disabled={adjustments.length === 0 || !employeeName || !employeeNumber}
+        >
+          Submit Week
+        </Button>
+      </div>
     </div>
   )
 }

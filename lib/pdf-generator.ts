@@ -4,8 +4,12 @@ import type { TimesheetData } from "./types"
 function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image()
+    img.crossOrigin = "anonymous"
     img.onload = () => resolve(img)
-    img.onerror = reject
+    img.onerror = (error) => {
+      console.error("Failed to load template image:", src, error)
+      reject(error)
+    }
     img.src = src
   })
 }
@@ -326,6 +330,8 @@ export async function generateTimesheetPDF(data: TimesheetData): Promise<jsPDF> 
     doc.text(currentDate, 150, 254)
   } catch (error) {
     console.error("Error loading template image:", error)
+    console.log("Template image path:", templateImg)
+    console.log("Falling back to programmatic PDF generation")
     // Fallback to programmatic generation if template fails
     return generateFallbackPDF(data)
   }
