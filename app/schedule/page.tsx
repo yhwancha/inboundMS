@@ -64,8 +64,6 @@ export default function SchedulePage() {
   const [assignedDocks, setAssignedDocks] = useState<Set<number>>(new Set())
   const [checkedInItems, setCheckedInItems] = useState<ScheduleItem[]>([])
   const [isEditingDockAssignment, setIsEditingDockAssignment] = useState(false)
-  const [editingNoteId, setEditingNoteId] = useState<string | null>(null)
-  const [editNote, setEditNote] = useState<string>("")
   
   // Load available locations from localStorage
   useEffect(() => {
@@ -80,17 +78,20 @@ export default function SchedulePage() {
   }, [])
 
   const [supervisorTodos, setSupervisorTodos] = useState<TodoItem[]>([
-    { id: '1', text: 'Review container documentation', completed: false },
-    { id: '2', text: 'Approve unloading schedule', completed: false },
-    { id: '3', text: 'Check safety protocols', completed: false },
-    { id: '4', text: 'Sign off on work order', completed: false },
+    { id: '1', text: 'Assign dock to container', completed: false },
+    { id: '2', text: 'Assign inbound leader to dock', completed: false },
   ])
   const [workerTodos, setWorkerTodos] = useState<TodoItem[]>([
-    { id: '1', text: 'Prepare unloading equipment', completed: false },
-    { id: '2', text: 'Check container seals', completed: false },
-    { id: '3', text: 'Begin unloading process', completed: false },
-    { id: '4', text: 'Document any damages', completed: false },
-    { id: '5', text: 'Complete unloading checklist', completed: false },
+    { id: '1', text: 'Get container HBL', completed: false },
+    { id: '2', text: 'Take photo of container outside', completed: false },
+    { id: '3', text: 'Take photo of container seal and check container seal', completed: false },
+    { id: '4', text: 'Take photo of container inside', completed: false },
+    { id: '5', text: 'Put on the air lock', completed: false },
+    { id: '6', text: 'Unload container', completed: false },
+    { id: '7', text: 'Count the number of pallets in the container', completed: false },
+    { id: '8', text: 'Scan the pallets', completed: false },
+    { id: '9', text: 'Move the pallets to the warehouse location', completed: false },
+    { id: '10', text: 'Put the container paper in the container', completed: false },
   ])
   const [scheduleData, setScheduleData] = useState<ScheduleItem[]>([])
 
@@ -379,7 +380,7 @@ export default function SchedulePage() {
       if (selectedScheduleItem && selectedScheduleItem.checkInTime && selectedScheduleItem.checkInTime.trim() !== '') {
         const updatedData = scheduleData.map(item => 
           item.id === selectedScheduleItem.id 
-            ? { ...item, dock: `DOCK-${String(dockNumber).padStart(2, '0')}`, location: item.location || "stage" } 
+            ? { ...item, dock: `DOCK-${String(dockNumber).padStart(2, '0')}`, location: (item.location && item.location.trim() !== '') ? item.location : "stage" } 
             : item
         )
         setScheduleData(updatedData)
@@ -496,34 +497,6 @@ export default function SchedulePage() {
     setAvailableLocations(getAvailableLocations())
   }
 
-  // Note 편집 함수들
-  const handleNoteEditClick = (id: string, currentNote: string) => {
-    setEditingNoteId(id)
-    setEditNote(currentNote)
-  }
-
-  const handleNoteEditSave = (id: string) => {
-    const updatedData = scheduleData.map(item => 
-      item.id === id ? { ...item, note: editNote } : item
-    )
-    setScheduleData(updatedData)
-    
-    // localStorage에도 업데이트
-    try {
-      localStorage.setItem('confirmedScheduleData', JSON.stringify(updatedData))
-      console.log('Updated note via edit in localStorage:', editNote)
-    } catch (error) {
-      console.error('Error saving edited note to localStorage:', error)
-    }
-    
-    setEditingNoteId(null)
-    setEditNote("")
-  }
-
-  const handleNoteEditCancel = () => {
-    setEditingNoteId(null)
-    setEditNote("")
-  }
 
   const getDockStatus = (dockNumber: number) => {
     return dockStatuses[dockNumber] || 'available'
@@ -695,6 +668,37 @@ export default function SchedulePage() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Note Section */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Note</CardTitle>
+            <CardDescription>Add or edit notes for this item</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Textarea
+              value={selectedScheduleItem?.note || ""}
+              onChange={(e) => {
+                if (selectedScheduleItem) {
+                  const updatedData = scheduleData.map(item => 
+                    item.id === selectedScheduleItem.id ? { ...item, note: e.target.value } : item
+                  )
+                  setScheduleData(updatedData)
+                  setSelectedScheduleItem({ ...selectedScheduleItem, note: e.target.value })
+                  
+                  // localStorage에도 업데이트
+                  try {
+                    localStorage.setItem('confirmedScheduleData', JSON.stringify(updatedData))
+                  } catch (error) {
+                    console.error('Error saving note to localStorage:', error)
+                  }
+                }
+              }}
+              className="min-h-[100px]"
+              placeholder="Enter notes here..."
+            />
+          </CardContent>
+        </Card>
 
         {/* Dock Assignment Section */}
         {selectedScheduleItem && selectedScheduleItem.checkInTime && selectedScheduleItem.checkInTime.trim() !== '' && (
@@ -1081,12 +1085,12 @@ export default function SchedulePage() {
                       {item.dock && item.dock.trim() !== '' ? (
                         // Dock이 할당된 경우: Selection toggle
                         <Select
-                          value={item.location || "stage"}
+                          value={(item.location && item.location.trim() !== '') ? item.location : "stage"}
                           onValueChange={(value) => handleLocationSelect(item.id, value)}
                         >
                           <SelectTrigger className="w-32 h-8 text-sm">
                             <SelectValue placeholder="Select location">
-                              {item.location || "Stage"}
+                              {(item.location && item.location.trim() !== '') ? item.location : "Stage"}
                             </SelectValue>
                           </SelectTrigger>
                           <SelectContent>
@@ -1138,48 +1142,9 @@ export default function SchedulePage() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      {editingNoteId === item.id ? (
-                        <div className="flex flex-col gap-2">
-                          <Textarea
-                            value={editNote}
-                            onChange={(e) => setEditNote(e.target.value)}
-                            className="min-h-[60px] text-sm"
-                            placeholder="Enter note..."
-                          />
-                          <div className="flex gap-1 justify-end">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleNoteEditSave(item.id)}
-                              className="h-6 px-2 text-xs"
-                            >
-                              <Edit2 className="h-3 w-3" />
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={handleNoteEditCancel}
-                              className="h-6 px-2 text-xs"
-                            >
-                              <X className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-sm flex-1 min-w-0">
-                            {item.note || <span className="text-gray-400 italic">No note</span>}
-                          </span>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleNoteEditClick(item.id, item.note || "")}
-                            className="h-6 px-2 text-xs flex-shrink-0"
-                          >
-                            <Edit2 className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      )}
+                      <span className="text-sm">
+                        {item.note || <span className="text-gray-400 italic">No note</span>}
+                      </span>
                     </TableCell>
                   </TableRow>
                 ))}

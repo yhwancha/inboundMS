@@ -303,7 +303,7 @@ export default function ManageSchedulePage() {
         hbl: data[2] || `HBL${row.rowIndex}`, // C 컬럼 (HBL)
         cntr: data[3] || `CNTR${row.rowIndex}`, // D 컬럼 (CNTR로 변경)
         appointmentTime: appointmentTime, // N 컬럼(인덱스 13)에서 변환된 시간
-        location: data[5] || `Location ${row.rowIndex}`, // F 컬럼
+        location: "stage", // 기본값은 항상 stage
         note: data[14] || "", // O 컬럼 (N 다음 컬럼)
         status: "free" as const, // 기본값
         type: (index % 2 === 0 ? "Cell" : "Pack") as const // 기본값

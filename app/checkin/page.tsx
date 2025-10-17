@@ -36,6 +36,8 @@ export default function CheckInPage() {
   const [editTime, setEditTime] = useState<string>("")
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null)
   const [editNote, setEditNote] = useState<string>("")
+  const [containerInput, setContainerInput] = useState<string>("")
+  const [matchedItemId, setMatchedItemId] = useState<string | null>(null)
 
   // localStorage에서 확인된 스케줄 데이터 불러오기
   useEffect(() => {
@@ -121,6 +123,41 @@ export default function CheckInPage() {
   }, [])
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc' | null>(null)
 
+  // Container Number 입력 처리
+  const handleContainerInputChange = (value: string) => {
+    setContainerInput(value)
+    
+    // 10자리 이상 입력되면 자동으로 매칭 시도
+    if (value.length >= 10) {
+      const inputFirst10 = value.substring(0, 10).toUpperCase()
+      
+      // scheduleData에서 앞 10자리가 일치하는 항목 찾기
+      const matchedItem = scheduleData.find(item => {
+        const cntrFirst10 = item.cntr.substring(0, 10).toUpperCase()
+        return cntrFirst10 === inputFirst10
+      })
+      
+      if (matchedItem) {
+        setMatchedItemId(matchedItem.id)
+        console.log('Matched container:', matchedItem.cntr)
+      } else {
+        setMatchedItemId(null)
+        console.log('No matching container found for:', inputFirst10)
+      }
+    } else {
+      setMatchedItemId(null)
+    }
+  }
+
+  // Container Number 매칭 후 체크인
+  const handleContainerCheckIn = () => {
+    if (matchedItemId) {
+      handleCheckIn(matchedItemId)
+      setContainerInput("")
+      setMatchedItemId(null)
+    }
+  }
+
   const handleCheckIn = (id: string) => {
     // 현재 시간을 HH:MM 형식으로 가져오기
     const now = new Date()
@@ -141,6 +178,21 @@ export default function CheckInPage() {
       console.log('Updated check-in time in localStorage:', currentTime)
     } catch (error) {
       console.error('Error saving check-in time to localStorage:', error)
+    }
+  }
+
+  const handleCancelCheckIn = (id: string) => {
+    const updatedData = scheduleData.map(item => 
+      item.id === id ? { ...item, checkInTime: "" } : item
+    )
+    setScheduleData(updatedData)
+    
+    // localStorage에도 업데이트된 데이터 저장
+    try {
+      localStorage.setItem('confirmedScheduleData', JSON.stringify(updatedData))
+      console.log('Cancelled check-in for item:', id)
+    } catch (error) {
+      console.error('Error cancelling check-in in localStorage:', error)
     }
   }
 
@@ -283,6 +335,54 @@ export default function CheckInPage() {
         <h1 className="text-3xl font-bold text-foreground">Check In</h1>
       </div>
 
+      {/* Container Number Input */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Container Number Check In</CardTitle>
+          <CardDescription>Enter container number (10 digits) to check in</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex gap-4 items-end">
+            <div className="flex-1">
+              <label htmlFor="containerInput" className="text-sm font-medium mb-2 block">
+                Container Number
+              </label>
+              <Input
+                id="containerInput"
+                type="text"
+                placeholder="Enter 10 digits of container number..."
+                value={containerInput}
+                onChange={(e) => handleContainerInputChange(e.target.value)}
+                className={`text-lg ${matchedItemId ? 'border-green-500 bg-green-50' : ''}`}
+                maxLength={11}
+              />
+            </div>
+            <Button
+              onClick={handleContainerCheckIn}
+              disabled={!matchedItemId}
+              className="px-8"
+            >
+              <Check className="h-4 w-4 mr-2" />
+              Check In
+            </Button>
+          </div>
+          {matchedItemId && (
+            <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-md">
+              <p className="text-sm text-green-700 font-medium">
+                ✓ Container matched: {scheduleData.find(item => item.id === matchedItemId)?.cntr}
+              </p>
+            </div>
+          )}
+          {containerInput.length >= 10 && !matchedItemId && (
+            <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-md">
+              <p className="text-sm text-red-700 font-medium">
+                ✗ No matching container found
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Schedule Table with Check In Time */}
       <Card>
         <CardHeader>
@@ -374,6 +474,14 @@ export default function CheckInPage() {
                               className="h-6 px-2 text-xs"
                             >
                               <Edit2 className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleCancelCheckIn(item.id)}
+                              className="h-6 px-2 text-xs border-red-300 text-red-600 hover:bg-red-50"
+                            >
+                              Cancel
                             </Button>
                           </div>
                         </div>
