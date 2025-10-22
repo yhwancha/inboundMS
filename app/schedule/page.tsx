@@ -1,11 +1,12 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { ArrowLeft, Upload, Download, X, Plus, Edit2, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { getAvailableLocations } from "@/lib/location-storage"
+import * as XLSX from "xlsx"
 import {
   Table,
   TableBody,
@@ -43,6 +44,7 @@ interface ScheduleItem {
   status: "free" | "unloading" | "hold"
   type: "Cell" | "Pack"
   checkInTime?: string // Optional check-in time field
+  supervisorTasksCompleted?: string[] // Array of completed supervisor task IDs
 }
 
 interface TodoItem {
@@ -64,6 +66,8 @@ export default function SchedulePage() {
   const [assignedDocks, setAssignedDocks] = useState<Set<number>>(new Set())
   const [checkedInItems, setCheckedInItems] = useState<ScheduleItem[]>([])
   const [isEditingDockAssignment, setIsEditingDockAssignment] = useState(false)
+  const [checkInSortOrder, setCheckInSortOrder] = useState<'asc' | 'desc' | null>(null)
+  const [apptTimeSortOrder, setApptTimeSortOrder] = useState<'asc' | 'desc' | null>(null)
   
   // Load available locations from localStorage
   useEffect(() => {
@@ -199,10 +203,16 @@ export default function SchedulePage() {
   useEffect(() => {
     const assigned = getAssignedDocks()
     const checkedInWithoutDock = getCheckedInWithoutDock()
+    // Dock이 할당되지 않은 체크인된 항목들만 표시
+    const checkedInNoDock = scheduleData.filter(item => 
+      item.checkInTime && 
+      item.checkInTime.trim() !== '' && 
+      (!item.dock || item.dock.trim() === '')
+    )
     setAssignedDocks(assigned)
-    setCheckedInItems(checkedInWithoutDock)
+    setCheckedInItems(checkedInNoDock)
     console.log('Assigned docks:', Array.from(assigned))
-    console.log('Checked in items without dock:', checkedInWithoutDock.length)
+    console.log('Checked in without dock:', checkedInNoDock.length)
     
     // 사용 중인 Location들을 확인하고 자동으로 disable 처리
     syncLocationStatuses()
@@ -329,10 +339,65 @@ export default function SchedulePage() {
     }
   }
 
-  // Generate dock numbers from 32 to 4, decrementing by 2 (descending order, excluding 2)
+  // Driver Check-in List 정렬 함수
+  const handleSortCheckInByTime = () => {
+    setApptTimeSortOrder(null)
+    if (checkInSortOrder === null) {
+      setCheckInSortOrder('asc')
+    } else if (checkInSortOrder === 'asc') {
+      setCheckInSortOrder('desc')
+    } else {
+      setCheckInSortOrder('asc')
+    }
+  }
+
+  const handleSortCheckInByApptTime = () => {
+    setCheckInSortOrder(null)
+    if (apptTimeSortOrder === null) {
+      setApptTimeSortOrder('asc')
+    } else if (apptTimeSortOrder === 'asc') {
+      setApptTimeSortOrder('desc')
+    } else {
+      setApptTimeSortOrder('asc')
+    }
+  }
+
+  // useMemo로 정렬된 체크인 리스트를 메모이제이션
+  const sortedCheckedInItems = useMemo(() => {
+    let sorted = [...checkedInItems]
+    
+    if (checkInSortOrder) {
+      // Sort by check-in time (HH:MM 형식)
+      sorted.sort((a, b) => {
+        if (!a.checkInTime) return 1
+        if (!b.checkInTime) return -1
+        
+        // HH:MM 형식을 분 단위로 변환
+        const timeA = timeToMinutes(a.checkInTime)
+        const timeB = timeToMinutes(b.checkInTime)
+        
+        return checkInSortOrder === 'asc' ? timeA - timeB : timeB - timeA
+      })
+    } else if (apptTimeSortOrder) {
+      // Sort by appointment time
+      sorted.sort((a, b) => {
+        const timeA = timeToMinutes(a.appointmentTime || '00:00')
+        const timeB = timeToMinutes(b.appointmentTime || '00:00')
+        return apptTimeSortOrder === 'asc' ? timeA - timeB : timeB - timeA
+      })
+    }
+    
+    return sorted
+  }, [checkedInItems, checkInSortOrder, apptTimeSortOrder])
+
+  // Generate dock numbers from 4 to 32, incrementing by 2 (ascending order, excluding 2)
   const generateDockNumbers = () => {
     const docks = []
-    for (let i = 32; i >= 4; i -= 2) {
+    for (let i = 4; i <= 32; i += 2) {
+      docks.push(i)
+    }
+    // Add 60-70 range
+    for (let i = 60; i <= 70; i += 2) {
       docks.push(i)
     }
     return docks
@@ -342,23 +407,29 @@ export default function SchedulePage() {
   const groupDocksWithOffice = (docks: number[]) => {
     const groups = []
     
-    // First group: 32, 30, 28
+    // First group: 4, 6, 8
     groups.push(docks.slice(0, 3))
     
-    // Second group: 26, 24, 22
+    // Second group: 10, 12, 14
     groups.push(docks.slice(3, 6))
     
-    // Third group: Office (separate)
-    groups.push(['office'])
-    
-    // Fourth group: 20, 18, 16
+    // Third group: 16, 18, 20
     groups.push(docks.slice(6, 9))
     
-    // Fifth group: 14, 12, 10
+    // Fourth group: Office (separate)
+    groups.push(['office'])
+    
+    // Fifth group: 22, 24, 26
     groups.push(docks.slice(9, 12))
     
-    // Sixth group: 8, 6, 4
+    // Sixth group: 28, 30, 32
     groups.push(docks.slice(12, 15))
+    
+    // Seventh group: 60, 62, 64
+    groups.push(docks.slice(15, 18))
+    
+    // Eighth group: 66, 68, 70
+    groups.push(docks.slice(18, 21))
     
     return groups
   }
@@ -519,6 +590,15 @@ export default function SchedulePage() {
 
   const handleScheduleItemClick = (item: ScheduleItem) => {
     setSelectedScheduleItem(item)
+    
+    // Supervisor Tasks 상태를 해당 아이템의 완료 상태로 설정
+    const completedTaskIds = item.supervisorTasksCompleted || []
+    setSupervisorTodos(prev =>
+      prev.map(todo => ({
+        ...todo,
+        completed: completedTaskIds.includes(todo.id)
+      }))
+    )
   }
 
   const handleBackToList = () => {
@@ -532,6 +612,35 @@ export default function SchedulePage() {
           todo.id === todoId ? { ...todo, completed: !todo.completed } : todo
         )
       )
+      
+      // Update supervisorTasksCompleted for the selected schedule item
+      if (selectedScheduleItem) {
+        const currentCompleted = selectedScheduleItem.supervisorTasksCompleted || []
+        const isCurrentlyCompleted = currentCompleted.includes(todoId)
+        
+        const updatedCompleted = isCurrentlyCompleted
+          ? currentCompleted.filter(id => id !== todoId)
+          : [...currentCompleted, todoId]
+        
+        const updatedItem = {
+          ...selectedScheduleItem,
+          supervisorTasksCompleted: updatedCompleted
+        }
+        
+        // Update schedule data
+        const updatedData = scheduleData.map(item =>
+          item.id === selectedScheduleItem.id ? updatedItem : item
+        )
+        setScheduleData(updatedData)
+        setSelectedScheduleItem(updatedItem)
+        
+        // Save to localStorage
+        try {
+          localStorage.setItem('confirmedScheduleData', JSON.stringify(updatedData))
+        } catch (error) {
+          console.error('Error saving supervisor tasks to localStorage:', error)
+        }
+      }
     } else {
       setWorkerTodos(prev => 
         prev.map(todo => 
@@ -544,6 +653,56 @@ export default function SchedulePage() {
   const handleOfficeClick = () => {
     console.log('Office clicked')
     // TODO: Handle office selection logic
+  }
+
+  const handleDownloadExcel = () => {
+    try {
+      // 데이터 준비
+      const excelData = scheduleData.map((item, index) => ({
+        'Num': index + 1,
+        'Dock': item.dock || '',
+        'HBL': item.hbl,
+        'CNTR': item.cntr,
+        'Appointment Time': item.appointmentTime,
+        'Check-In Time': item.checkInTime || '',
+        'Location': item.location || '',
+        'Note': item.note || ''
+      }))
+
+      // 워크북 생성
+      const ws = XLSX.utils.json_to_sheet(excelData)
+      const wb = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(wb, ws, 'Schedule Data')
+
+      // 컬럼 너비 설정
+      ws['!cols'] = [
+        { wch: 5 },  // Num
+        { wch: 10 }, // Dock
+        { wch: 15 }, // HBL
+        { wch: 15 }, // CNTR
+        { wch: 15 }, // Appointment Time
+        { wch: 15 }, // Check-In Time
+        { wch: 12 }, // Location
+        { wch: 30 }  // Note
+      ]
+
+      // 파일명 생성 (현재 날짜 포함)
+      const today = new Date()
+      const dateStr = today.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      }).replace(/\//g, '-')
+      const fileName = `Schedule_Data_${dateStr}.xlsx`
+
+      // 파일 다운로드
+      XLSX.writeFile(wb, fileName)
+
+      console.log('Excel file downloaded:', fileName)
+    } catch (error) {
+      console.error('Error downloading Excel:', error)
+      alert('Failed to download Excel file. Please try again.')
+    }
   }
 
   const dockNumbers = generateDockNumbers()
@@ -846,6 +1005,95 @@ export default function SchedulePage() {
         <h1 className="text-3xl font-bold text-foreground">Schedule</h1>
       </div>
 
+      {/* Driver Check-in List */}
+      {checkedInItems.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Driver Check-In List</CardTitle>
+            <CardDescription>
+              Currently checked-in drivers ({checkedInItems.length})
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="rounded-lg border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-24">Num</TableHead>
+                    <TableHead>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 px-2 -ml-2"
+                        onClick={handleSortCheckInByApptTime}
+                      >
+                        Appointment Time
+                        {apptTimeSortOrder === 'asc' && <ArrowUp className="ml-2 h-4 w-4" />}
+                        {apptTimeSortOrder === 'desc' && <ArrowDown className="ml-2 h-4 w-4" />}
+                        {!apptTimeSortOrder && <ArrowUpDown className="ml-2 h-4 w-4" />}
+                      </Button>
+                    </TableHead>
+                    <TableHead>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 px-2 -ml-2"
+                        onClick={handleSortCheckInByTime}
+                      >
+                        Check-In Time
+                        {checkInSortOrder === 'asc' && <ArrowUp className="ml-2 h-4 w-4" />}
+                        {checkInSortOrder === 'desc' && <ArrowDown className="ml-2 h-4 w-4" />}
+                        {!checkInSortOrder && <ArrowUpDown className="ml-2 h-4 w-4" />}
+                      </Button>
+                    </TableHead>
+                    <TableHead>HBL</TableHead>
+                    <TableHead>CNTR</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {sortedCheckedInItems
+                    .map((item) => {
+                      const itemIndex = scheduleData.findIndex(d => d.id === item.id)
+                      const num = itemIndex !== -1 ? itemIndex + 1 : '-'
+                      
+                      // Format check-in time (HH:MM -> HH:MM AM/PM)
+                      let formattedCheckInTime = '-'
+                      if (item.checkInTime && item.checkInTime.trim() !== '') {
+                        try {
+                          // HH:MM 형식을 AM/PM 형식으로 변환
+                          const [hours, minutes] = item.checkInTime.split(':').map(Number)
+                          if (!isNaN(hours) && !isNaN(minutes)) {
+                            const period = hours >= 12 ? 'PM' : 'AM'
+                            const displayHours = hours % 12 || 12
+                            formattedCheckInTime = `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`
+                          } else {
+                            formattedCheckInTime = item.checkInTime
+                          }
+                        } catch (e) {
+                          formattedCheckInTime = item.checkInTime
+                        }
+                      }
+                      
+                      // Format appointment time
+                      let formattedApptTime = item.appointmentTime || '-'
+                      
+                      return (
+                        <TableRow key={item.id} className="hover:bg-accent/50">
+                          <TableCell className="font-semibold">#{num}</TableCell>
+                          <TableCell className="font-mono text-sm">{formattedApptTime}</TableCell>
+                          <TableCell className="font-mono text-sm">{formattedCheckInTime}</TableCell>
+                          <TableCell className="font-medium">{item.hbl}</TableCell>
+                          <TableCell>{item.cntr}</TableCell>
+                        </TableRow>
+                      )
+                    })}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Dock Map */}
       <Card>
         <CardHeader>
@@ -1009,8 +1257,21 @@ export default function SchedulePage() {
       {/* Schedule Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Schedule Data</CardTitle>
-          <CardDescription>Current schedule items loaded from Excel</CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Schedule Data</CardTitle>
+              <CardDescription>Current schedule items loaded from Excel</CardDescription>
+            </div>
+            <Button
+              onClick={handleDownloadExcel}
+              variant="outline"
+              size="sm"
+              className="gap-2"
+            >
+              <Download className="h-4 w-4" />
+              Download Excel
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="rounded-md border">
@@ -1039,6 +1300,7 @@ export default function SchedulePage() {
                     </Button>
                   </TableHead>
                   <TableHead>Location</TableHead>
+                  <TableHead>Progress</TableHead>
                   <TableHead>Type</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-center">Status Color</TableHead>
@@ -1106,6 +1368,23 @@ export default function SchedulePage() {
                         // Dock이 할당되지 않은 경우: 빈 값 표시
                         <span className="text-sm text-gray-400 italic">-</span>
                       )}
+                    </TableCell>
+                    <TableCell>
+                      {/* Progress: Supervisor Tasks 진행 상태 */}
+                      <div className="flex items-center gap-1">
+                        {supervisorTodos.map((todo) => {
+                          const isCompleted = item.supervisorTasksCompleted?.includes(todo.id)
+                          return (
+                            <div
+                              key={todo.id}
+                              className={`w-3 h-3 rounded-full ${
+                                isCompleted ? getStatusColor(item.status) : 'bg-gray-300'
+                              }`}
+                              title={`${todo.text}: ${isCompleted ? 'Completed' : 'Pending'}`}
+                            />
+                          )
+                        })}
+                      </div>
                     </TableCell>
                     <TableCell>
                       <span className={`px-2 py-1 rounded-md text-xs font-medium ${

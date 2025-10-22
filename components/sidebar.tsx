@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { FileText, History, Settings, Menu, X, Package, Calendar, Clock, ChevronDown, MapPin, ClipboardList, List } from "lucide-react"
+import { FileText, History, Settings, Menu, X, Package, Calendar, Clock, ChevronDown, MapPin, ClipboardList, List, CheckCircle, Scan, FileSpreadsheet, GitCompare } from "lucide-react"
 
 const navigation = [
   {
@@ -34,6 +34,16 @@ const navigation = [
         icon: List,
       },
       {
+        name: "Schedule Excel Insert",
+        href: "/schedule-excel",
+        icon: FileSpreadsheet,
+      },
+      {
+        name: "Excel Sheet Compare",
+        href: "/excel-compare",
+        icon: GitCompare,
+      },
+      {
         name: "Check In",
         href: "/checkin",
         icon: Clock,
@@ -44,6 +54,16 @@ const navigation = [
         icon: MapPin,
       },
     ],
+  },
+  {
+    name: "Check In",
+    href: "/check-in-form",
+    icon: CheckCircle,
+  },
+  {
+    name: "PWS Scan Compare",
+    href: "/pws-scan-compare",
+    icon: Scan,
   },
   {
     name: "Version History",

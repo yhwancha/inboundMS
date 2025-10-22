@@ -55,6 +55,8 @@ export default function ManageSchedulePage() {
   const [searchResults, setSearchResults] = useState<ExcelRow[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc' | null>(null)
+  const [excelHeaders, setExcelHeaders] = useState<string[]>([])
+  const [maxColumns, setMaxColumns] = useState<number>(0)
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -147,6 +149,25 @@ export default function ManageSchedulePage() {
     // 해당 시트의 M 컬럼에서 날짜들을 추출
     const sheet = excelSheets.find(s => s.name === sheetName)
     if (sheet) {
+      // 첫 번째 행을 헤더로 사용
+      if (sheet.data.length > 0) {
+        const headerRow = sheet.data[0]
+        const headers = headerRow.map((cell, index) => {
+          if (cell !== undefined && cell !== null && String(cell).trim() !== '') {
+            return String(cell)
+          }
+          // 빈 헤더는 알파벳으로 표시 (A, B, C, ...)
+          return String.fromCharCode(65 + index)
+        })
+        setExcelHeaders(headers)
+        
+        // 최대 컬럼 수 계산
+        const maxCols = Math.max(...sheet.data.map(row => row.length))
+        setMaxColumns(maxCols)
+        console.log('Excel headers:', headers)
+        console.log('Max columns:', maxCols)
+      }
+      
       const uniqueDates = new Set<string>()
       const allMValues: (string | number)[] = []
       
@@ -403,6 +424,58 @@ export default function ManageSchedulePage() {
     }
   }
 
+  // Excel 셀 값을 포맷팅하는 함수 (날짜/시간 숫자를 적절한 형식으로 변환)
+  const formatExcelCellValue = (value: any): string => {
+    if (value === undefined || value === null) return ""
+    
+    // 이미 문자열이면 그대로 반환
+    if (typeof value === 'string') return value
+    
+    // 숫자인 경우
+    if (typeof value === 'number') {
+      // 0 ~ 1 사이의 소수: Excel 시간 값 (하루의 비율)
+      if (value >= 0 && value < 1) {
+        // Excel 시간을 실제 시간으로 변환
+        const totalMinutes = Math.round(value * 24 * 60)
+        const hours = Math.floor(totalMinutes / 60)
+        const minutes = totalMinutes % 60
+        
+        // 12시간 형식으로 변환
+        let displayHours = hours
+        let ampm = 'AM'
+        
+        if (hours === 0) {
+          displayHours = 12
+        } else if (hours === 12) {
+          ampm = 'PM'
+        } else if (hours > 12) {
+          displayHours = hours - 12
+          ampm = 'PM'
+        }
+        
+        return `${displayHours}:${minutes.toString().padStart(2, '0')} ${ampm}`
+      }
+      
+      // 1 이상의 숫자: Excel 날짜 값
+      if (value > 1 && value < 100000) {
+        // Excel 날짜 숫자를 날짜로 변환
+        const excelEpoch = new Date(1900, 0, 1)
+        const date = new Date(excelEpoch.getTime() + (value - 2) * 24 * 60 * 60 * 1000)
+        
+        if (!isNaN(date.getTime())) {
+          // 유효한 날짜인 경우 MM/DD/YYYY 형식으로 반환
+          const month = (date.getMonth() + 1).toString().padStart(2, '0')
+          const day = date.getDate().toString().padStart(2, '0')
+          const year = date.getFullYear()
+          return `${month}/${day}/${year}`
+        }
+      }
+    }
+    
+    // 그 외의 경우 문자열로 변환
+    return String(value)
+  }
+
   // 시간을 분으로 변환하는 함수 (정렬용)
   const timeToMinutes = (timeStr: string): number => {
     if (!timeStr) return 0
@@ -621,42 +694,35 @@ export default function ManageSchedulePage() {
           <CardHeader>
             <CardTitle>Excel 검색 결과</CardTitle>
             <CardDescription>
-              시트 "{selectedSheet}"에서 M 컬럼 날짜 "{selectedDate ? formatDateToString(selectedDate) : ''}"를 가진 {searchResults.length}개의 행을 찾았습니다.
+              시트 "{selectedSheet}"에서 날짜 "{selectedDate ? formatDateToString(selectedDate) : ''}"를 가진 {searchResults.length}개의 행을 찾았습니다.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="rounded-md border">
+            <div className="rounded-md border overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Row #</TableHead>
-                    <TableHead>A</TableHead>
-                    <TableHead>B</TableHead>
-                    <TableHead>C</TableHead>
-                    <TableHead>D</TableHead>
-                    <TableHead>E</TableHead>
-                    <TableHead>F</TableHead>
-                    <TableHead>G</TableHead>
-                    <TableHead>H</TableHead>
-                    <TableHead>I</TableHead>
-                    <TableHead>J</TableHead>
-                    <TableHead>K</TableHead>
-                    <TableHead>L</TableHead>
-                    <TableHead className="bg-blue-100">M (검색값)</TableHead>
-                    <TableHead>N</TableHead>
-                    <TableHead>O</TableHead>
+                    <TableHead className="sticky left-0 bg-white z-10">Row #</TableHead>
+                    {excelHeaders.map((header, index) => (
+                      <TableHead 
+                        key={index}
+                        className={index === 12 ? "bg-blue-100" : ""}
+                      >
+                        {header}
+                      </TableHead>
+                    ))}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {searchResults.map((result, index) => (
                     <TableRow key={index}>
-                      <TableCell className="font-medium">{result.rowIndex}</TableCell>
-                      {result.data.slice(0, 15).map((cell, cellIndex) => (
+                      <TableCell className="font-medium sticky left-0 bg-white z-10">{result.rowIndex}</TableCell>
+                      {Array.from({ length: maxColumns }, (_, cellIndex) => (
                         <TableCell 
                           key={cellIndex}
                           className={cellIndex === 12 ? "bg-blue-50 font-medium" : ""}
                         >
-                          {cell !== undefined && cell !== null ? String(cell) : ""}
+                          {formatExcelCellValue(result.data[cellIndex])}
                         </TableCell>
                       ))}
                     </TableRow>
@@ -727,7 +793,7 @@ export default function ManageSchedulePage() {
                   <TableRow key={item.id}>
                     <TableCell>{item.hbl}</TableCell>
                     <TableCell>{item.cntr}</TableCell>
-                    <TableCell>{item.appointmentTime}</TableCell>
+                    <TableCell>{formatExcelCellValue(item.appointmentTime)}</TableCell>
                     <TableCell>{item.location}</TableCell>
                     <TableCell>
                       <span className={`px-2 py-1 rounded-md text-xs font-medium ${

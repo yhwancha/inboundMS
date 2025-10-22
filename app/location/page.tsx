@@ -40,15 +40,8 @@ export default function LocationPage() {
     return Array.from({ length: maxNumber }, (_, i) => i + 1)
   }
   
-  const generateLocationGroups = () => {
-    const letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L']
-    const groups = []
-    
-    for (let i = 0; i < letters.length; i += 2) {
-      groups.push([letters[i], letters[i + 1]].filter(Boolean))
-    }
-    
-    return groups
+  const generateLocationLetters = () => {
+    return ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L']
   }
   
   const handleLocationClick = (locationId: string) => {
@@ -63,8 +56,7 @@ export default function LocationPage() {
     setEditMode(!editMode)
   }
   
-  const letters = generateLocationRows()
-  const locationGroups = generateLocationGroups()
+  const letters = generateLocationLetters()
   const availableLocations = getAvailableLocationsFromStorage()
 
   return (
@@ -130,15 +122,22 @@ export default function LocationPage() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-wrap gap-12">
-            {locationGroups.map((group, groupIndex) => (
-              <div key={groupIndex} className="space-y-4">
-                <div className="flex gap-4">
-                {group.map((letter) => {
-                  const columns = generateLocationColumns(letter)
-                  return (
-                    <div key={letter} className="flex flex-col gap-1">
-                      {/* Vertical Location Grid */}
+          <div className="space-y-8">
+            {/* First row: Location columns A-L */}
+            <div className="flex flex-wrap items-start">
+              {letters.map((letter, index) => {
+                const columns = generateLocationColumns(letter)
+                // A,B 띄움(index 0,1), B,C 붙음(index 1,2), C,D 띄움(index 2,3), D,E 붙음(index 3,4)...
+                // 홀수 인덱스(B,D,F,H,J,L)는 왼쪽 마진 있음 (띄움)
+                // 짝수 인덱스(A,C,E,G,I,K)는 왼쪽 마진 없음 (붙임, 단 A는 첫번째라 상관없음)
+                const hasLeftMargin = index % 2 === 1
+                
+                return (
+                  <div key={letter} className="flex flex-col items-center">
+                    <div 
+                      className={`flex flex-col gap-1 ${hasLeftMargin ? 'ml-8' : ''}`}
+                    >
+                      {/* Location Cells */}
                       {columns.map((num) => {
                         const locationId = `${letter}-${num}`
                         const status = locationStatuses[locationId]
@@ -149,33 +148,38 @@ export default function LocationPage() {
                             onClick={() => handleLocationClick(locationId)}
                             disabled={!editMode && status === "disabled"}
                             title={locationId}
-                            className={`w-16 h-10 border-2 rounded text-xs font-medium transition-colors duration-200 flex items-center justify-center ${
+                            className={`w-20 h-10 border-2 rounded text-xs font-semibold transition-colors duration-200 flex items-center justify-center relative ${
                               status === "available"
                                 ? "border-green-300 bg-green-100 text-green-700"
                                 : "border-red-300 bg-red-100 text-red-700 cursor-not-allowed"
                             } ${editMode ? "hover:border-blue-500 hover:shadow-md cursor-pointer" : ""}`}
                           >
-                            {status === "disabled" ? "✕" : locationId}
+                            <span className={status === "disabled" ? "line-through decoration-2" : ""}>
+                              {locationId}
+                            </span>
                           </button>
                         )
                       })}
                     </div>
-                  )
-                })}
-                </div>
-                
-                {/* Office box below G, H group (groupIndex 3) */}
-                {groupIndex === 3 && (
-                  <div className="flex justify-center">
-                    <button
-                      className="w-36 h-14 border-2 border-purple-300 rounded-lg bg-purple-50 hover:bg-purple-100 hover:border-purple-500 transition-colors duration-200 flex items-center justify-center font-semibold text-purple-700 hover:text-purple-800 text-base"
-                    >
-                      Office
-                    </button>
                   </div>
-                )}
+                )
+              })}
+            </div>
+            
+            {/* Office box below G, H columns */}
+            <div className="flex">
+              {/* Spacer for A-F columns (6 columns * 20px + 4 gaps * 32px = 248px) */}
+              <div style={{ width: 'calc(6 * 80px + 3 * 32px)' }} />
+              
+              {/* Office positioned below G, H */}
+              <div className="flex justify-center" style={{ width: 'calc(2 * 80px + 32px)' }}>
+                <button
+                  className="w-32 h-14 border-2 border-purple-300 rounded-lg bg-purple-50 hover:bg-purple-100 hover:border-purple-500 transition-colors duration-200 flex items-center justify-center font-semibold text-purple-700 hover:text-purple-800 text-base"
+                >
+                  Office
+                </button>
               </div>
-            ))}
+            </div>
           </div>
         </CardContent>
       </Card>
