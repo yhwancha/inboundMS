@@ -1,12 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { storage } from '@/lib/data-storage'
 
 // GET: Fetch all locations
 export async function GET(request: NextRequest) {
   try {
-    const locations = await prisma.location.findMany({
-      orderBy: { id: 'asc' }
-    })
+    const locations = storage.getLocations()
     return NextResponse.json(locations)
   } catch (error: any) {
     console.error('Error fetching locations:', error)
@@ -24,17 +22,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid data format' }, { status: 400 })
     }
 
-    // Upsert locations
-    const operations = locations.map((loc: { id: string; status: string }) =>
-      prisma.location.upsert({
-        where: { id: loc.id },
-        update: { status: loc.status },
-        create: { id: loc.id, status: loc.status }
-      })
-    )
-
-    await prisma.$transaction(operations)
-
+    storage.initializeLocations(locations)
     return NextResponse.json({ success: true })
   } catch (error: any) {
     console.error('Error initializing locations:', error)
@@ -52,12 +40,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'ID and status are required' }, { status: 400 })
     }
 
-    const updated = await prisma.location.upsert({
-      where: { id },
-      update: { status },
-      create: { id, status }
-    })
-
+    const updated = storage.updateLocation(id, status)
     return NextResponse.json(updated)
   } catch (error: any) {
     console.error('Error updating location:', error)

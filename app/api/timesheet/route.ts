@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { storage } from '@/lib/data-storage'
 
 // GET: Fetch all timesheet entries
 export async function GET(request: NextRequest) {
@@ -7,17 +7,7 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams
     const date = searchParams.get('date')
 
-    if (date) {
-      const entries = await prisma.timesheetEntry.findMany({
-        where: { date },
-        orderBy: { createdAt: 'desc' }
-      })
-      return NextResponse.json(entries)
-    }
-
-    const entries = await prisma.timesheetEntry.findMany({
-      orderBy: { createdAt: 'desc' }
-    })
+    const entries = storage.getTimesheets(date || undefined)
     return NextResponse.json(entries)
   } catch (error: any) {
     console.error('Error fetching timesheet entries:', error)
@@ -29,11 +19,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-
-    const entry = await prisma.timesheetEntry.create({
-      data: body
-    })
-
+    const entry = storage.createTimesheet(body)
     return NextResponse.json(entry)
   } catch (error: any) {
     console.error('Error creating timesheet entry:', error)
@@ -51,10 +37,11 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'ID is required' }, { status: 400 })
     }
 
-    const updated = await prisma.timesheetEntry.update({
-      where: { id },
-      data
-    })
+    const updated = storage.updateTimesheet(id, data)
+    
+    if (!updated) {
+      return NextResponse.json({ error: 'Timesheet entry not found' }, { status: 404 })
+    }
 
     return NextResponse.json(updated)
   } catch (error: any) {
@@ -73,9 +60,11 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'ID is required' }, { status: 400 })
     }
 
-    await prisma.timesheetEntry.delete({
-      where: { id }
-    })
+    const success = storage.deleteTimesheet(id)
+    
+    if (!success) {
+      return NextResponse.json({ error: 'Timesheet entry not found' }, { status: 404 })
+    }
 
     return NextResponse.json({ success: true })
   } catch (error: any) {
