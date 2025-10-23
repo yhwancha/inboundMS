@@ -138,7 +138,7 @@ export default function ScheduleExcelPage() {
     ))
   }
 
-  const handleExtractData = () => {
+  const handleExtractData = async () => {
     // Validate all files have date column and date selected
     const incomplete = excelFiles.find(f => !f.selectedDateColumn || !f.selectedDate)
     if (incomplete) {
@@ -149,11 +149,89 @@ export default function ScheduleExcelPage() {
       return
     }
 
-    // TODO: Extract rows based on selected date from each file
-    setUploadStatus({
-      type: "success",
-      message: "데이터 추출이 완료되었습니다!"
-    })
+    try {
+      const allSchedules: any[] = []
+      
+      // Extract data from each file
+      for (const file of excelFiles) {
+        const data = await file.file.arrayBuffer()
+        const workbook = XLSX.read(data, { type: 'array' })
+        const firstSheetName = workbook.SheetNames[0]
+        const worksheet = workbook.Sheets[firstSheetName]
+        const jsonData = XLSX.utils.sheet_to_json(worksheet) as any[]
+        
+        // Find column index for date
+        const dateColumnIndex = file.columns.indexOf(file.selectedDateColumn)
+        
+        // Filter rows by selected date
+        const filteredRows = jsonData.filter((row: any) => {
+          const rowDate = row[file.selectedDateColumn]
+          if (!rowDate) return false
+          
+          // Convert Excel date to string if needed
+          let dateString = String(rowDate)
+          if (typeof rowDate === 'number') {
+            // Excel serial date to JS date
+            const date = new Date((rowDate - 25569) * 86400 * 1000)
+            dateString = date.toISOString().split('T')[0]
+          }
+          
+          return dateString.includes(file.selectedDate) || 
+                 dateString === file.selectedDate
+        })
+        
+        // Map to schedule format
+        filteredRows.forEach((row: any, index: number) => {
+          allSchedules.push({
+            date: file.selectedDate,
+            appointmentTime: row['Appointment Time'] || row['Time'] || `${9 + index}:00`,
+            locationId: row['Location'] || row['Dock'] || 'stage',
+            clientName: row['Client Name'] || row['Name'] || row['HBL'] || `Client ${index + 1}`,
+            phoneNumber: row['Phone'] || row['Contact'] || '000-0000-0000',
+            serviceType: row['Service'] || row['Type'] || 'Standard',
+            notes: row['Notes'] || row['Note'] || ''
+          })
+        })
+      }
+      
+      if (allSchedules.length === 0) {
+        setUploadStatus({
+          type: "error",
+          message: "선택한 날짜의 데이터가 없습니다."
+        })
+        return
+      }
+      
+      // Send to Backend API
+      const response = await fetch('/api/schedule', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ schedules: allSchedules })
+      })
+      
+      if (!response.ok) {
+        throw new Error('Failed to save schedules')
+      }
+      
+      const result = await response.json()
+      
+      setUploadStatus({
+        type: "success",
+        message: `${result.count}개의 스케줄이 저장되었습니다!`
+      })
+      
+      // Clear files after successful upload
+      setTimeout(() => {
+        setExcelFiles([])
+      }, 2000)
+      
+    } catch (error) {
+      console.error('Error extracting data:', error)
+      setUploadStatus({
+        type: "error",
+        message: "데이터 추출 중 오류가 발생했습니다."
+      })
+    }
   }
 
   const formatDate = (date: Date) => {

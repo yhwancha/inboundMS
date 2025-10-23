@@ -1,11 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { storage } from '@/lib/data-storage'
+
+const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:3001/api'
 
 // GET: Fetch all locations
 export async function GET(request: NextRequest) {
   try {
-    const locations = storage.getLocations()
-    return NextResponse.json(locations)
+    const response = await fetch(`${BACKEND_URL}/location`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    })
+
+    const data = await response.json()
+    return NextResponse.json(data, { status: response.status })
   } catch (error: any) {
     console.error('Error fetching locations:', error)
     return NextResponse.json({ error: error.message }, { status: 500 })
@@ -16,14 +24,17 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { locations } = body
 
-    if (!locations || !Array.isArray(locations)) {
-      return NextResponse.json({ error: 'Invalid data format' }, { status: 400 })
-    }
+    const response = await fetch(`${BACKEND_URL}/location`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    })
 
-    storage.initializeLocations(locations)
-    return NextResponse.json({ success: true })
+    const data = await response.json()
+    return NextResponse.json(data, { status: response.status })
   } catch (error: any) {
     console.error('Error initializing locations:', error)
     return NextResponse.json({ error: error.message }, { status: 500 })
@@ -34,14 +45,17 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json()
-    const { id, status } = body
 
-    if (!id || !status) {
-      return NextResponse.json({ error: 'ID and status are required' }, { status: 400 })
-    }
+    const response = await fetch(`${BACKEND_URL}/location`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    })
 
-    const updated = storage.updateLocation(id, status)
-    return NextResponse.json(updated)
+    const data = await response.json()
+    return NextResponse.json(data, { status: response.status })
   } catch (error: any) {
     console.error('Error updating location:', error)
     return NextResponse.json({ error: error.message }, { status: 500 })

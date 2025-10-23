@@ -24,19 +24,50 @@ export default function SettingsPage() {
   })
 
   useEffect(() => {
-    // Load settings from localStorage
-    const saved = localStorage.getItem("emailSettings")
-    if (saved) {
-      setSettings(JSON.parse(saved))
+    // Load settings from API
+    const fetchSettings = async () => {
+      try {
+        const response = await fetch('/api/settings')
+        const data = await response.json()
+        
+        if (data && data.logoUrl) {
+          setSettings({
+            defaultEmail: data.logoUrl || "",
+            defaultSubject: data.userImage || "Timesheet Correction Form - Week Ending [DATE]",
+            defaultBody: "Please find attached the timesheet correction form for review and approval.\n\nThank you.",
+          })
+        }
+      } catch (error) {
+        console.error('Error fetching settings:', error)
+      }
     }
+    
+    fetchSettings()
   }, [])
 
-  const handleSave = () => {
-    localStorage.setItem("emailSettings", JSON.stringify(settings))
-    toast({
-      title: "Settings Saved",
-      description: "Your email settings have been saved successfully.",
-    })
+  const handleSave = async () => {
+    try {
+      await fetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          logoUrl: settings.defaultEmail,
+          userImage: settings.defaultSubject
+        })
+      })
+      
+      toast({
+        title: "Settings Saved",
+        description: "Your email settings have been saved successfully.",
+      })
+    } catch (error) {
+      console.error('Error saving settings:', error)
+      toast({
+        title: "Error",
+        description: "Failed to save settings. Please try again.",
+        variant: "destructive"
+      })
+    }
   }
 
   return (

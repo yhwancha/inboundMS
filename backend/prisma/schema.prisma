@@ -1,0 +1,57 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Settings {
+  id        String   @id @default("settings")
+  logoUrl   String   @default("")
+  userImage String   @default("")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model TimesheetEntry {
+  id           String   @id @default(cuid())
+  date         String
+  employeeName String
+  checkInTime  String
+  checkOutTime String
+  location     String
+  totalHours   Float
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([date])
+}
+
+model Location {
+  id        String   @id
+  status    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Schedule {
+  id              String   @id @default(cuid())
+  date            String
+  appointmentTime String
+  locationId      String
+  clientName      String
+  phoneNumber     String
+  serviceType     String
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([date])
+  @@index([appointmentTime])
+}
+

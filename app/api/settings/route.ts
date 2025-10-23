@@ -1,11 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { storage } from '@/lib/data-storage'
+
+const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:3001/api'
 
 // GET: Fetch settings
 export async function GET(request: NextRequest) {
   try {
-    const settings = storage.getSettings()
-    return NextResponse.json(settings)
+    const response = await fetch(`${BACKEND_URL}/settings`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    })
+
+    const data = await response.json()
+    return NextResponse.json(data, { status: response.status })
   } catch (error: any) {
     console.error('Error fetching settings:', error)
     return NextResponse.json({ error: error.message }, { status: 500 })
@@ -16,8 +24,17 @@ export async function GET(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json()
-    const updated = storage.updateSettings(body)
-    return NextResponse.json(updated)
+
+    const response = await fetch(`${BACKEND_URL}/settings`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    })
+
+    const data = await response.json()
+    return NextResponse.json(data, { status: response.status })
   } catch (error: any) {
     console.error('Error updating settings:', error)
     return NextResponse.json({ error: error.message }, { status: 500 })

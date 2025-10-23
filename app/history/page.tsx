@@ -7,46 +7,81 @@ import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Download, Trash2, FileText } from "lucide-react"
 import { format } from "date-fns"
-import { getAllSubmissions, deleteSubmission, type WeeklySubmission } from "@/lib/weekly-storage"
-import { generateTimesheetPDF, downloadPDF } from "@/lib/pdf-generator"
 import { useToast } from "@/hooks/use-toast"
 
+interface TimesheetEntry {
+  id: string
+  date: string
+  employeeName: string
+  checkInTime: string
+  checkOutTime: string
+  location: string
+  totalHours: number
+  createdAt?: string
+  updatedAt?: string
+}
+
 export default function HistoryPage() {
-  const [submissions, setSubmissions] = useState<WeeklySubmission[]>([])
+  const [entries, setEntries] = useState<TimesheetEntry[]>([])
   const { toast } = useToast()
 
   useEffect(() => {
-    loadSubmissions()
+    loadEntries()
   }, [])
 
-  const loadSubmissions = () => {
-    const allSubmissions = getAllSubmissions()
-    setSubmissions(allSubmissions.sort((a, b) => b.submittedAt.getTime() - a.submittedAt.getTime()))
-  }
-
-  const handleDelete = (id: string) => {
-    deleteSubmission(id)
-    loadSubmissions()
-    toast({
-      title: "Submission Deleted",
-      description: "The weekly submission has been removed from history.",
-    })
-  }
-
-  const handleDownload = async (submission: WeeklySubmission) => {
+  const loadEntries = async () => {
     try {
-      const pdf = await generateTimesheetPDF(submission.data)
-      const filename = `timesheet-correction-${submission.weekEnding}.pdf`
-      downloadPDF(pdf, filename)
+      const response = await fetch('/api/timesheet')
+      const data = await response.json()
+      setEntries(data.sort((a: TimesheetEntry, b: TimesheetEntry) => 
+        new Date(b.date).getTime() - new Date(a.date).getTime()
+      ))
+    } catch (error) {
+      console.error('Error loading timesheet entries:', error)
+    }
+  }
 
+  const handleDelete = async (id: string) => {
+    try {
+      await fetch(`/api/timesheet/${id}`, {
+        method: 'DELETE'
+      })
+      
+      await loadEntries()
+      
       toast({
-        title: "PDF Downloaded",
-        description: `Timesheet for week ending ${submission.weekEnding} has been downloaded.`,
+        title: "Entry Deleted",
+        description: "The timesheet entry has been removed from history.",
       })
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to download PDF.",
+        description: "Failed to delete entry.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleDownload = async (entry: TimesheetEntry) => {
+    try {
+      // Create a simple CSV download
+      const csvContent = `Date,Employee,Check In,Check Out,Location,Total Hours\n${entry.date},${entry.employeeName},${entry.checkInTime},${entry.checkOutTime},${entry.location},${entry.totalHours}`
+      const blob = new Blob([csvContent], { type: 'text/csv' })
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `timesheet-${entry.date}-${entry.employeeName}.csv`
+      a.click()
+      window.URL.revokeObjectURL(url)
+
+      toast({
+        title: "CSV Downloaded",
+        description: `Timesheet for ${entry.date} has been downloaded.`,
+      })
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to download CSV.",
         variant: "destructive",
       })
     }
@@ -59,12 +94,12 @@ export default function HistoryPage() {
         <p className="text-muted-foreground mt-1">View and download previously submitted timesheets</p>
       </div>
 
-      {submissions.length === 0 ? (
+      {entries.length === 0 ? (
         <Card>
           <CardContent className="py-12">
             <div className="text-center">
               <p className="text-muted-foreground">
-                No submissions yet. Submit your first weekly timesheet to start tracking history.
+                No timesheet entries yet. Add your first timesheet to start tracking history.
               </p>
             </div>
           </CardContent>
@@ -72,61 +107,52 @@ export default function HistoryPage() {
       ) : (
         <Card>
           <CardHeader>
-            <CardTitle>Weekly Submissions</CardTitle>
+            <CardTitle>Timesheet Entries</CardTitle>
             <CardDescription>
-              {submissions.length} submission{submissions.length !== 1 ? "s" : ""}
+              {entries.length} entr{entries.length !== 1 ? "ies" : "y"}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <ScrollArea className="h-[600px] pr-4">
               <div className="space-y-3">
-                {submissions.map((submission) => (
+                {entries.map((entry) => (
                   <div
-                    key={submission.id}
+                    key={entry.id}
                     className="flex items-start justify-between p-4 border border-border rounded-lg hover:bg-accent/50 transition-colors"
                   >
                     <div className="flex-1 space-y-2">
                       <div className="flex items-center gap-2">
                         <FileText className="h-4 w-4 text-primary" />
                         <span className="font-medium">
-                          Week Ending: {format(new Date(submission.weekEnding), "MMM dd, yyyy")}
+                          Date: {format(new Date(entry.date), "MMM dd, yyyy")}
                         </span>
                       </div>
                       <div className="text-sm text-muted-foreground space-y-1">
                         <div>
-                          Employee: {submission.data.employeeName} (#{submission.data.employeeNumber})
+                          Employee: {entry.employeeName}
                         </div>
-                        <div>Department: {submission.data.department}</div>
-                        <div>Adjustments: {submission.data.adjustments.length}</div>
-                        <div>Submitted: {format(submission.submittedAt, "MMM dd, yyyy HH:mm")}</div>
+                        <div>Location: {entry.location}</div>
+                        <div>Check In: {entry.checkInTime} | Check Out: {entry.checkOutTime}</div>
+                        <div>Total Hours: {entry.totalHours}</div>
+                        {entry.createdAt && (
+                          <div>Created: {format(new Date(entry.createdAt), "MMM dd, yyyy HH:mm")}</div>
+                        )}
                       </div>
-                      {submission.data.adjustments.length > 0 && (
-                        <div className="mt-2 pt-2 border-t border-border">
-                          <div className="text-xs font-medium text-muted-foreground mb-1">Adjustment Dates:</div>
-                          <div className="flex flex-wrap gap-1">
-                            {submission.data.adjustments.map((adj, idx) => (
-                              <Badge key={idx} variant="outline" className="text-xs">
-                                {adj.date}
-                              </Badge>
-                            ))}
-                          </div>
-                        </div>
-                      )}
                     </div>
                     <div className="flex gap-2">
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => handleDownload(submission)}
-                        title="Download PDF"
+                        onClick={() => handleDownload(entry)}
+                        title="Download CSV"
                       >
                         <Download className="h-4 w-4" />
                       </Button>
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => handleDelete(submission.id)}
-                        title="Delete submission"
+                        onClick={() => handleDelete(entry.id)}
+                        title="Delete entry"
                         className="text-destructive hover:text-destructive"
                       >
                         <Trash2 className="h-4 w-4" />

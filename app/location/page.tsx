@@ -5,29 +5,81 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { ArrowLeft, Edit2 } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { 
-  getLocationStatuses, 
-  saveLocationStatuses, 
-  toggleLocationStatus,
-  getAvailableLocations as getAvailableLocationsFromStorage
-} from "@/lib/location-storage"
 
 type LocationStatus = "available" | "disabled"
 
 interface LocationItem {
   id: string
-  status: LocationStatus
+  status: string
+  createdAt?: string
+  updatedAt?: string
 }
 
 export default function LocationPage() {
   const router = useRouter()
   const [editMode, setEditMode] = useState(false)
   const [locationStatuses, setLocationStatuses] = useState<Record<string, LocationStatus>>({})
+  const [isLoading, setIsLoading] = useState(true)
   
-  // Load location statuses from localStorage on mount
+  // Load location statuses from API on mount
   useEffect(() => {
-    setLocationStatuses(getLocationStatuses())
+    fetchLocations()
   }, [])
+  
+  const fetchLocations = async () => {
+    try {
+      const response = await fetch('/api/location')
+      const data: LocationItem[] = await response.json()
+      
+      // Convert array to Record<string, LocationStatus>
+      const statuses: Record<string, LocationStatus> = {}
+      data.forEach(loc => {
+        statuses[loc.id] = loc.status as LocationStatus
+      })
+      
+      setLocationStatuses(statuses)
+      setIsLoading(false)
+    } catch (error) {
+      console.error('Error fetching locations:', error)
+      setIsLoading(false)
+    }
+  }
+  
+  const initializeAllLocations = async () => {
+    const letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L']
+    const allLocations: { id: string; status: string }[] = []
+    
+    letters.forEach(letter => {
+      const maxNumber = (letter === 'J' || letter === 'K' || letter === 'L') ? 11 : 28
+      for (let i = 1; i <= maxNumber; i++) {
+        allLocations.push({
+          id: `${letter}-${i}`,
+          status: 'available'
+        })
+      }
+    })
+    
+    // Add stage location
+    allLocations.push({ id: 'stage', status: 'available' })
+    
+    try {
+      await fetch('/api/location', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ locations: allLocations })
+      })
+      
+      await fetchLocations()
+    } catch (error) {
+      console.error('Error initializing locations:', error)
+    }
+  }
+  
+  useEffect(() => {
+    if (!isLoading && Object.keys(locationStatuses).length === 0) {
+      initializeAllLocations()
+    }
+  }, [isLoading, locationStatuses])
   
   const generateLocationRows = () => {
     const letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L']
@@ -44,11 +96,30 @@ export default function LocationPage() {
     return ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L']
   }
   
-  const handleLocationClick = (locationId: string) => {
+  const handleLocationClick = async (locationId: string) => {
     if (editMode) {
-      // Toggle status on click and save to localStorage
-      const newStatuses = toggleLocationStatus(locationId)
-      setLocationStatuses(newStatuses)
+      // Toggle status and save to API
+      const currentStatus = locationStatuses[locationId]
+      const newStatus = currentStatus === 'available' ? 'disabled' : 'available'
+      
+      try {
+        await fetch('/api/location', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: locationId,
+            status: newStatus
+          })
+        })
+        
+        // Update local state
+        setLocationStatuses(prev => ({
+          ...prev,
+          [locationId]: newStatus
+        }))
+      } catch (error) {
+        console.error('Error updating location:', error)
+      }
     }
   }
   
@@ -57,7 +128,9 @@ export default function LocationPage() {
   }
   
   const letters = generateLocationLetters()
-  const availableLocations = getAvailableLocationsFromStorage()
+  const availableLocations = Object.keys(locationStatuses).filter(
+    id => locationStatuses[id] === 'available'
+  )
 
   return (
     <div className="space-y-6">

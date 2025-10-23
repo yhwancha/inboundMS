@@ -39,80 +39,42 @@ export default function CheckInPage() {
   const [containerInput, setContainerInput] = useState<string>("")
   const [matchedItemId, setMatchedItemId] = useState<string | null>(null)
 
-  // localStorage에서 확인된 스케줄 데이터 불러오기
+  // API에서 스케줄 데이터 불러오기
   useEffect(() => {
-    const loadConfirmedScheduleData = () => {
+    const loadScheduleData = async () => {
       try {
-        const confirmedData = localStorage.getItem('confirmedScheduleData')
-        const confirmedDate = localStorage.getItem('confirmedScheduleDate')
+        const response = await fetch('/api/schedule')
+        const data = await response.json()
         
-        console.log('Check In Page - Loading data from localStorage:')
-        console.log('confirmedData:', confirmedData)
-        console.log('confirmedDate:', confirmedDate)
+        console.log('Check In Page - Loading data from API:', data)
         
-        if (confirmedData && confirmedDate) {
-          const parsedData = JSON.parse(confirmedData)
-          console.log('Parsed data:', parsedData)
-          
-          // checkInTime과 dock 필드가 없는 경우에만 빈 문자열로 설정
-          const scheduleDataWithCheckIn = parsedData.map((item: any) => ({
-            ...item,
-            checkInTime: item.checkInTime || "", // 기존 값이 있으면 유지, 없으면 빈 문자열
-            dock: item.dock || "" // Dock이 없으면 빈 문자열로 설정
-          }))
-          setScheduleData(scheduleDataWithCheckIn)
-          console.log('Loaded confirmed schedule data for Check In:', scheduleDataWithCheckIn)
-        } else {
-          // 기본 샘플 데이터 (확인된 데이터가 없을 때만)
-          setScheduleData([
-            {
-              id: "1",
-              dock: "",
-              hbl: "HBL123456",
-              cntr: "CONT789012",
-              appointmentTime: "09:00",
-              location: "Warehouse A",
-              note: "Priority handling required",
-              status: "free",
-              type: "Cell",
-              checkInTime: ""
-            },
-            {
-              id: "2", 
-              dock: "",
-              hbl: "HBL234567",
-              cntr: "CONT890123",
-              appointmentTime: "14:30",
-              location: "Warehouse B",
-              note: "Standard processing",
-              status: "unloading",
-              type: "Pack",
-              checkInTime: ""
-            },
-            {
-              id: "3",
-              dock: "",
-              hbl: "HBL345678",
-              cntr: "CONT901234",
-              appointmentTime: "11:15",
-              location: "Warehouse C",
-              note: "Temperature controlled",
-              status: "hold",
-              type: "Cell",
-              checkInTime: ""
-            }
-          ])
-        }
+        // Map API data to schedule format
+        const scheduleDataWithCheckIn = data.map((item: any) => ({
+          id: item.id,
+          dock: item.dock || "",
+          hbl: item.clientName || item.hbl || "",
+          cntr: item.phoneNumber || item.cntr || "",
+          appointmentTime: item.appointmentTime || "",
+          location: item.locationId || "",
+          note: item.notes || "",
+          status: "free",
+          type: item.serviceType?.includes('Cell') ? "Cell" : "Pack",
+          checkInTime: item.checkInTime || ""
+        }))
+        
+        setScheduleData(scheduleDataWithCheckIn)
+        console.log('Loaded schedule data for Check In:', scheduleDataWithCheckIn)
       } catch (error) {
-        console.error('Error loading confirmed schedule data for Check In:', error)
+        console.error('Error loading schedule data for Check In:', error)
+        setScheduleData([])
       }
     }
 
-    loadConfirmedScheduleData()
+    loadScheduleData()
     
     // 페이지가 포커스될 때마다 데이터 새로고침
     const handleFocus = () => {
-      loadConfirmedScheduleData()
+      loadScheduleData()
     }
     
     window.addEventListener('focus', handleFocus)
