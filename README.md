@@ -185,22 +185,25 @@ pnpm dev
 
 ## 배포
 
-### Render 배포 가이드
-자세한 배포 방법은 [RENDER_DEPLOY.md](./RENDER_DEPLOY.md)를 참조하세요.
+### 🚀 Vercel + Render 배포 (권장)
+Frontend는 Vercel에, Backend는 Render에 배포하는 것을 권장합니다.
 
-#### 백엔드 배포
-1. PostgreSQL 데이터베이스 생성
-2. Web Service 생성 (Node 런타임)
-3. Root Directory: `backend`
-4. Build Command: `pnpm install && pnpm prisma generate && pnpm build`
-5. Start Command: `pnpm start:prod`
+**자세한 가이드**: [VERCEL_DEPLOY.md](./VERCEL_DEPLOY.md)
 
-#### 프론트엔드 배포
-1. Web Service 생성 (Node 런타임)
-2. Root Directory: (비워두기)
-3. Build Command: `pnpm install && pnpm build`
-4. Start Command: `pnpm start`
-5. 환경 변수 `BACKEND_URL` 설정 (백엔드 URL)
+#### 배포 순서
+1. **PostgreSQL 생성** (Render) - 무료 750MB
+2. **Backend 배포** (Render) - NestJS API
+3. **Frontend 배포** (Vercel) - Next.js 앱
+
+#### 필요한 환경 변수
+- **Frontend (Vercel)**: `BACKEND_URL`
+- **Backend (Render)**: `DATABASE_URL`, `PORT`, `NODE_ENV`, `FRONTEND_URL`
+
+📚 **더 많은 가이드**:
+- [VERCEL_DEPLOY.md](./VERCEL_DEPLOY.md) - Vercel + Render 배포
+- [RENDER_DEPLOY.md](./RENDER_DEPLOY.md) - Render 전용 배포
+- [ENV_VARIABLES.md](./ENV_VARIABLES.md) - 환경 변수 상세 설명
+- [DEPLOYMENT_CHECKLIST.md](./DEPLOYMENT_CHECKLIST.md) - 배포 체크리스트
 
 ## 개발 가이드
 

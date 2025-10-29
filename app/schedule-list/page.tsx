@@ -26,52 +26,45 @@ export default function ScheduleListPage() {
   const [scheduleList, setScheduleList] = useState<ScheduleListItem[]>([])
   const [loading, setLoading] = useState(true)
 
-  // localStorage에서 스케줄 리스트 불러오기
+  // API에서 스케줄 리스트 불러오기
   useEffect(() => {
-    const loadScheduleList = () => {
+    const loadScheduleList = async () => {
       try {
         setLoading(true)
-        const storedList = localStorage.getItem('scheduleList')
+        const response = await fetch('/api/schedule')
+        const schedules = await response.json()
         
-        if (storedList) {
-          const parsedList = JSON.parse(storedList)
+        // 날짜별로 그룹화
+        const dateGroups: { [key: string]: any[] } = {}
+        schedules.forEach((schedule: any) => {
+          if (!dateGroups[schedule.date]) {
+            dateGroups[schedule.date] = []
+          }
+          dateGroups[schedule.date].push(schedule)
+        })
+        
+        // ScheduleListItem 형식으로 변환
+        const list: ScheduleListItem[] = Object.entries(dateGroups).map(([date, items]) => {
+          // 가장 최근 업데이트 시간 찾기
+          const latestUpdate = items.reduce((latest, item) => {
+            const itemDate = new Date(item.updatedAt)
+            return itemDate > latest ? itemDate : latest
+          }, new Date(items[0].updatedAt))
           
-          // 각 날짜별로 실제 데이터 개수 확인
-          const updatedList = parsedList.map((item: ScheduleListItem) => {
-            const actualData = localStorage.getItem(`confirmedScheduleData_${item.date}`)
-            if (actualData) {
-              const parsedData = JSON.parse(actualData)
-              return {
-                ...item,
-                count: parsedData.length // 실제 데이터 개수로 업데이트
-              }
-            }
-            return item
-          })
-          
-          setScheduleList(updatedList)
-        } else {
-          // 샘플 데이터 (개발용)
-          setScheduleList([
-            {
-              date: "10/15/2025",
-              count: 5,
-              lastUpdated: "10/15/2025 09:30"
-            },
-            {
-              date: "10/16/2025", 
-              count: 8,
-              lastUpdated: "10/16/2025 14:20"
-            },
-            {
-              date: "10/17/2025",
-              count: 3,
-              lastUpdated: "10/17/2025 11:45"
-            }
-          ])
-        }
+          return {
+            date: format(new Date(date), 'MM/dd/yyyy'),
+            count: items.length,
+            lastUpdated: format(latestUpdate, 'MM/dd/yyyy, hh:mm a')
+          }
+        })
+        
+        // 날짜순 정렬 (최신순)
+        list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+        
+        setScheduleList(list)
       } catch (error) {
         console.error('Error loading schedule list:', error)
+        setScheduleList([])
       } finally {
         setLoading(false)
       }
@@ -81,39 +74,37 @@ export default function ScheduleListPage() {
   }, [])
 
   const handleViewSchedule = (date: string) => {
-    // 선택한 날짜의 스케줄 데이터를 불러와서 현재 선택된 데이터로 설정
-    const confirmedData = localStorage.getItem(`confirmedScheduleData_${date}`)
-    if (confirmedData) {
-      // 현재 선택된 데이터로 설정
-      localStorage.setItem('confirmedScheduleData', confirmedData)
-      
-      // 날짜를 ISO 형식으로 변환하여 저장
-      const [month, day, year] = date.split('/')
-      const isoDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day)).toISOString()
-      localStorage.setItem('confirmedScheduleDate', isoDate)
-    }
+    // 날짜를 쿼리 파라미터로 전달하여 Schedule 페이지로 이동
+    const [month, day, year] = date.split('/')
+    const isoDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day)).toISOString().split('T')[0]
     
-    router.push('/schedule')
+    router.push(`/schedule?date=${isoDate}`)
   }
 
-  const handleDeleteSchedule = (date: string) => {
+  const handleDeleteSchedule = async (date: string) => {
     if (confirm(`정말로 ${date}의 스케줄 데이터를 삭제하시겠습니까?`)) {
-      // 리스트에서 제거
-      const updatedList = scheduleList.filter(item => item.date !== date)
-      setScheduleList(updatedList)
-      localStorage.setItem('scheduleList', JSON.stringify(updatedList))
-      
-      // 해당 날짜의 데이터 삭제
-      localStorage.removeItem(`confirmedScheduleData_${date}`)
-      
-      // 만약 현재 선택된 날짜라면 confirmedScheduleData도 삭제
-      const confirmedDate = localStorage.getItem('confirmedScheduleDate')
-      if (confirmedDate) {
-        const confirmedDateStr = format(new Date(confirmedDate), 'MM/dd/yyyy')
-        if (confirmedDateStr === date) {
-          localStorage.removeItem('confirmedScheduleData')
-          localStorage.removeItem('confirmedScheduleDate')
-        }
+      try {
+        // 날짜를 ISO 형식으로 변환
+        const [month, day, year] = date.split('/')
+        const isoDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day)).toISOString().split('T')[0]
+        
+        // API에서 해당 날짜의 모든 스케줄 조회
+        const response = await fetch(`/api/schedule?date=${isoDate}`)
+        const schedules = await response.json()
+        
+        // 각 스케줄 삭제
+        await Promise.all(
+          schedules.map((schedule: any) =>
+            fetch(`/api/schedule/${schedule.id}`, { method: 'DELETE' })
+          )
+        )
+        
+        // 로컬 상태에서 제거
+        const updatedList = scheduleList.filter(item => item.date !== date)
+        setScheduleList(updatedList)
+      } catch (error) {
+        console.error('Error deleting schedules:', error)
+        alert('스케줄 삭제 중 오류가 발생했습니다.')
       }
     }
   }

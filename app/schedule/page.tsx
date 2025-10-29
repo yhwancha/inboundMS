@@ -141,7 +141,16 @@ export default function SchedulePage() {
   useEffect(() => {
     const loadScheduleData = async () => {
       try {
-        const response = await fetch('/api/schedule')
+        // URL에서 날짜 파라미터 읽기
+        const urlParams = new URLSearchParams(window.location.search)
+        const dateParam = urlParams.get('date')
+        
+        // API 호출 (날짜 파라미터가 있으면 포함)
+        const url = dateParam 
+          ? `/api/schedule?date=${dateParam}`
+          : '/api/schedule'
+        
+        const response = await fetch(url)
         const data = await response.json()
         
         // Map API data to schedule format

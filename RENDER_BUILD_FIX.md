@@ -228,3 +228,4 @@ Render 배포가 성공하면:
 **문제**: Prisma Client 미생성  
 **해결**: postinstall 스크립트 추가
 
+

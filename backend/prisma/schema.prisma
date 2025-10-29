@@ -55,3 +55,35 @@ model Schedule {
   @@index([appointmentTime])
 }
 
+model VasSchedule {
+  id              String   @id @default(cuid())
+  date            String
+  appointmentTime String
+  locationId      String
+  clientName      String
+  phoneNumber     String
+  serviceType     String
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([date])
+  @@index([appointmentTime])
+}
+
+model OutboundSchedule {
+  id              String   @id @default(cuid())
+  date            String
+  appointmentTime String
+  locationId      String
+  clientName      String
+  phoneNumber     String
+  serviceType     String
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([date])
+  @@index([appointmentTime])
+}
+

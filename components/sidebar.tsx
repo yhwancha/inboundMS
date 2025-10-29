@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { FileText, History, Settings, Menu, X, Package, Calendar, Clock, ChevronDown, MapPin, ClipboardList, List, CheckCircle, Scan, FileSpreadsheet, GitCompare } from "lucide-react"
+import { FileText, History, Settings, Menu, X, Package, Calendar, Clock, ChevronDown, MapPin, ClipboardList, List, CheckCircle, Scan, FileSpreadsheet, GitCompare, Sparkles, TruckIcon } from "lucide-react"
 
 const navigation = [
   {
@@ -52,6 +52,28 @@ const navigation = [
         name: "Location",
         href: "/location",
         icon: MapPin,
+      },
+    ],
+  },
+  {
+    name: "VAS",
+    icon: Sparkles,
+    children: [
+      {
+        name: "VAS Schedule Excel",
+        href: "/vas-excel",
+        icon: FileSpreadsheet,
+      },
+    ],
+  },
+  {
+    name: "Outbound",
+    icon: TruckIcon,
+    children: [
+      {
+        name: "Outbound Schedule Excel",
+        href: "/outbound-excel",
+        icon: FileSpreadsheet,
       },
     ],
   },

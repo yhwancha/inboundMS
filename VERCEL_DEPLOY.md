@@ -319,3 +319,4 @@ BACKEND_URL=https://your-backend-url.onrender.com/api
 **작성일**: 2025-10-22  
 **업데이트**: Vercel + Render 배포 구조
 
+

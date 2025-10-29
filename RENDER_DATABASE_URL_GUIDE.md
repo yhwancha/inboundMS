@@ -235,3 +235,4 @@ DATABASE_URL="postgresql://user:password@dpg-xxxxx-a.region.render.com/database"
 **플랫폼**: Render PostgreSQL  
 **권장 사용**: Internal Database URL (같은 Render 계정 내)
 
+

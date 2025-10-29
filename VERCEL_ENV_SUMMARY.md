@@ -213,3 +213,4 @@ FRONTEND_URL=https://your-app.vercel.app
 **작성일**: 2025-10-22  
 **플랫폼**: Vercel (Frontend) + Render (Backend)
 
+
